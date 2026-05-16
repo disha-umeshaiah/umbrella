@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Umbrella // Intelligent UK Weather</title>
+    <!-- Tailwind CSS for sleek layouts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts for sophisticated typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            transition: background-color 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+        /* Canvas layer for falling elements */
+        #weather-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+        /* Wrap everything else above canvas */
+        header, main, footer {
+            position: relative;
+            z-index: 10;
+        }
+        /* Glassmorphism base */
+        .glass-card {
+            background: rgba(17, 24, 39, 0.65);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        /* Dynamic Theme Glowing Profiles */
+        .theme-rain { background-color: #080c14; }
+        .glow-rain {
+            box-shadow: 0 0 30px -5px rgba(14, 165, 233, 0.15);
+            border-color: rgba(14, 165, 233, 0.3);
+        }
+        
+        .theme-sun { background-color: #0f110a; }
+        .glow-sun {
+            box-shadow: 0 0 30px -5px rgba(234, 179, 8, 0.15);
+            border-color: rgba(234, 179, 8, 0.3);
+        }
+
+        .theme-snow { background-color: #0d1117; }
+        .glow-snow {
+            box-shadow: 0 0 30px -5px rgba(165, 243, 252, 0.15);
+            border-color: rgba(165, 243, 252, 0.3);
+        }
+
+        .theme-hail { background-color: #110e14; }
+        .glow-hail {
+            box-shadow: 0 0 30px -5px rgba(192, 132, 252, 0.15);
+            border-color: rgba(192, 132, 252, 0.3);
+        }
+
+        /* Breathing target tracker animation */
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 0.6; box-shadow: 0 0 15px currentColor; }
+            50% { opacity: 1; box-shadow: 0 0 25px currentColor; }
+        }
+        .animate-pulse-glow {
+            animation: pulse-glow 2.5s infinite ease-in-out;
+        }
+
+        /* Liquid sip effect keyframe */
+        @keyframes liquid-sip {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(8px); opacity: 0.8; }
+        }
+        .animate-sip {
+            animation: liquid-sip 1.6s ease-in-out infinite;
+        }
+
+        /* Sophisticated Beer Clinking Keyframes */
+        @keyframes left-glass-clink {
+            0%, 100% { transform: rotate(0deg) translateX(0); }
+            50% { transform: rotate(8deg) translateX(3px); }
+        }
+        @keyframes right-glass-clink {
+            0%, 100% { transform: rotate(0deg) translateX(0); }
+            50% { transform: rotate(-8deg) translateX(-3px); }
+        }
+        @keyframes splash-pulse {
+            0%, 100% { opacity: 0; transform: scale(0.6) translateY(2px); }
+            50% { opacity: 1; transform: scale(1.1) translateY(-2px); }
+        }
+        .animate-beer-left {
+            animation: left-glass-clink 1.8s ease-in-out infinite;
+            transform-origin: bottom left;
+        }
+        .animate-beer-right {
+            animation: right-glass-clink 1.8s ease-in-out infinite;
+            transform-origin: bottom right;
+        }
+        .animate-beer-splash {
+            animation: splash-pulse 1.8s ease-in-out infinite;
+            transform-origin: center;
+        }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col justify-between p-4 md:p-8 theme-rain">
+
+    <!-- Background Matrix Canvas for Weather Effects -->
+    <canvas id="weather-canvas"></canvas>
+
+    <!-- Satellite Sweeper / Matrix Loading Screen Overlay -->
+    <div id="satellite-overlay" class="fixed inset-0 bg-slate-950/90 z-50 backdrop-blur-md hidden flex-col items-center justify-center gap-4 font-mono">
+        <div class="w-16 h-16 border-4 border-t-sky-400 border-slate-800 rounded-full animate-spin"></div>
+        <div class="text-xs tracking-widest text-sky-400 animate-pulse mt-2" id="overlay-text">INTERCEPTING UP-LINK TELEMETRY...</div>
+        <div class="text-[10px] text-slate-500" id="overlay-coords">LAT: 52.4862° N // LON: 1.8904° W</div>
+    </div>
+
+    <!-- Top Navigation / Header -->
+    <header class="max-w-5xl w-full mx-auto flex flex-col lg:flex-row justify-between items-center gap-4 mb-8">
+        <div class="flex items-center gap-3">
+            <!-- Minimalist Umbrella Logo -->
+            <svg class="w-8 h-8 text-sky-400 transition-colors duration-500" id="logo-icon" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v17m0-17a9 9 0 0 1 9 9h-9M12 3a9 9 0 0 0-9 9h9m0 8a2 2 0 0 1-2-2"></path>
+            </svg>
+            <span class="text-xl font-bold tracking-wider uppercase text-white">Umbrella<span class="text-sky-400 transition-colors duration-500" id="logo-dot">.</span></span>
+        </div>
+
+        <!-- Interactive Location Input System -->
+        <div class="relative w-full max-w-xs group">
+            <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-500 group-focus-within:text-sky-400 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+            </span>
+            <input type="text" id="location-input" placeholder="Type location (e.g., London)..." 
+                class="w-full pl-10 pr-4 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500/50 focus:ring-1 focus:ring-sky-500/20 transition-all font-medium"
+                onkeydown="if(event.key === 'Enter') processLocationChange()">
+        </div>
+        
+        <!-- Interactive Micro Neon Matrix Controllers -->
+        <div class="flex bg-slate-950/90 p-1.5 rounded-2xl border border-slate-800/80 gap-1.5 shadow-inner">
+            <button onclick="setWeather('rain')" id="btn-rain" class="p-2.5 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/30 transition-all duration-300 group" title="Standard Rain">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v14M8.5 6a4 4 0 017 0m-8.5 7h10m-7.5 4l-1 3m5-3l-1 3"></path>
+                </svg>
+            </button>
+            <button onclick="setWeather('sun')" id="btn-sun" class="p-2.5 rounded-xl text-slate-500 hover:text-yellow-400 hover:bg-yellow-550/5 transition-all duration-300 group" title="Rare Sun Event">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2m0 14v2m9-9h-2M5 12H3m14.071-7.071l-1.414 1.414M7.05 16.95l-1.414 1.414M16.95 16.95l1.414 1.414M7.05 7.05L5.636 5.636M12 8a4 4 0 100 8 4 4 0 000-8z"></path>
+                </svg>
+            </button>
+            <button onclick="setWeather('snow')" id="btn-snow" class="p-2.5 rounded-xl text-slate-500 hover:text-cyan-300 hover:bg-cyan-500/5 transition-all duration-300 group" title="Arctic Front">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m9-9H3m15-6L6 18M6 6l12 12"></path>
+                </svg>
+            </button>
+            <button onclick="setWeather('hail')" id="btn-hail" class="p-2.5 rounded-xl text-slate-500 hover:text-purple-400 hover:bg-purple-550/5 transition-all duration-300 group" title="Severe Hail Storm">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"></path>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="max-w-5xl w-full mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch my-auto">
+        
+        <!-- Left Column: Hero Status & Pub Garden Predictor -->
+        <div class="md:col-span-1 flex flex-col gap-6">
+            <!-- Main State Card -->
+            <div id="main-card" class="glass-card glow-rain rounded-3xl p-6 flex flex-col justify-between flex-1 min-h-[220px]">
+                <div>
+                    <p class="text-xs font-semibold tracking-widest text-slate-400 uppercase mb-1" id="location-label">Current / Birmingham</p>
+                    <h1 class="text-5xl font-light text-white tracking-tight" id="temp-display">13°C</h1>
+                    <p class="text-sm font-medium text-sky-400 mt-2 transition-colors duration-500" id="condition-display">Persistent Drizzle</p>
+                </div>
+                <div class="mt-4 border-t border-slate-800/60 pt-4 flex justify-between text-xs text-slate-400">
+                    <div>Wind: <span class="text-white font-medium" id="wind-display">24 mph</span></div>
+                    <div>Precip: <span class="text-white font-medium" id="precip-display">88%</span></div>
+                </div>
+            </div>
+
+            <!-- FEATURE: Pub Garden Predictor -->
+            <div id="pub-card" class="glass-card rounded-3xl p-6 border-slate-800 flex flex-col justify-between">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="flex items-center gap-3">
+                        <!-- Vector Beer Toast Animation Graphics -->
+                        <div class="w-12 h-12 flex items-center justify-center bg-slate-950/40 border border-slate-800/60 rounded-xl overflow-hidden p-1 shrink-0">
+                            <svg class="w-full h-full" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path class="animate-beer-splash" d="M46 32 Q50 25 48 20 M54 32 Q50 25 52 20" stroke="#f59e0b" stroke-width="3" stroke-linecap="round"/>
+                                <circle class="animate-beer-splash" cx="50" cy="26" r="2" fill="#ffffff" />
+                                
+                                <g class="animate-beer-left">
+                                    <path d="M25 45 L33 78 C33 79 34 80 35 80 L44 80 C45 80 46 79 46 78 L46 45 Z" fill="#d97706" id="beer-liquid-left" />
+                                    <rect x="23" y="39" width="25" height="7" rx="3.5" fill="#ffffff" opacity="0.95" />
+                                    <path d="M23 42 L32 82 C32 84 34 85 36 85 L44 85 C46 85 48 84 48 82 L48 42" stroke="rgba(255,255,255,0.4)" stroke-width="2.5" stroke-linecap="round" />
+                                    <path d="M23 50 H17 V70 H23" stroke="rgba(255,255,255,0.4)" stroke-width="2" stroke-linecap="round" />
+                                </g>
+
+                                <g class="animate-beer-right">
+                                    <path d="M75 45 L67 78 C67 79 66 80 65 80 L56 80 C55 80 54 79 54 78 L54 45 Z" fill="#d97706" id="beer-liquid-right" />
+                                    <rect x="52" y="39" width="25" height="7" rx="3.5" fill="#ffffff" opacity="0.95" />
+                                    <path d="M77 42 L68 82 C68 84 66 85 64 85 L56 85 C54 85 52 84 52 82 L52 42" stroke="rgba(255,255,255,0.4)" stroke-width="2.5" stroke-linecap="round" />
+                                    <path d="M77 50 H83 V70 H77" stroke="rgba(255,255,255,0.4)" stroke-width="2" stroke-linecap="round" />
+                                </g>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-semibold tracking-wide text-white">Pub Garden Index</h3>
+                            <p class="text-xs text-slate-400 mt-0.5">Optimized for patio survival</p>
+                        </div>
+                    </div>
+                    <span id="pub-score" class="text-2xl font-bold font-mono px-3 py-1 bg-slate-900 rounded-xl border border-slate-800 text-slate-400 transition-all duration-500">2/10</span>
+                </div>
+                <p id="pub-verdict" class="text-xs text-slate-400 leading-relaxed transition-colors duration-500">
+                    Unviable. Direct sunlight deficiency detected. Stay indoors or secure indoor booth seating.
+                </p>
+            </div>
+        </div>
+
+        <!-- Middle Column: Wardrobe Architect & FEATURE: Coffee Shop Run Risk Analyzer -->
+        <div class="md:col-span-1 flex flex-col gap-6">
+            <!-- Wardrobe Architect -->
+            <div id="wardrobe-card" class="glass-card rounded-3xl p-6 border-slate-800 flex flex-col justify-between flex-1">
+                <div>
+                    <div class="flex items-center gap-2 mb-4">
+                        <span class="w-2 h-2 rounded-full bg-sky-400 transition-colors duration-500 id-indicator"></span>
+                        <h3 class="text-sm font-semibold tracking-wide text-white">Dynamic Wardrobe Architect</h3>
+                    </div>
+                    <div id="wardrobe-list" class="space-y-3">
+                        <!-- Dynamic Items Inject Here -->
+                    </div>
+                </div>
+                <div id="safety-warning" class="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-400 leading-relaxed hidden">
+                    ⚠️ <strong>High Wind Warning:</strong> Conventional umbrellas will invert. Opt for a technical hood.
+                </div>
+            </div>
+
+            <!-- FEATURE: Coffee Shop Run Risk Analyzer -->
+            <div id="coffee-card" class="glass-card rounded-3xl p-6 border-slate-800">
+                <div class="flex items-center justify-between mb-3">
+                    <div>
+                        <h3 class="text-sm font-semibold tracking-wide text-white">Coffee Run Analyzer</h3>
+                        <p class="text-[11px] text-slate-400">Tactical evaluation for iced latte transits</p>
+                    </div>
+                    <span id="coffee-icon" class="text-xl transition-transform duration-500">☕</span>
+                </div>
+                
+                <button onclick="analyzeCoffeeRun()" id="btn-coffee-analyze" class="w-full py-2.5 px-4 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-semibold text-slate-200 transition-all active:scale-[0.98] mb-3 flex items-center justify-center gap-2">
+                    <span>Execute Radar Simulation Loop</span>
+                </button>
+
+                <!-- Dynamic Vector Animation Container -->
+                <div id="coffee-animation-box" class="h-28 w-full bg-slate-950/60 rounded-xl border border-slate-900 mb-3 hidden flex items-center justify-center relative overflow-hidden">
+                    <svg class="h-20 w-20 transition-all duration-500" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <line x1="65" y1="15" x2="45" y2="75" stroke="#f43f5e" stroke-width="4" stroke-linecap="round" />
+                        <path d="M30 35 L38 85 C38 87, 40 89, 42 89 L58 89 C60 89, 62 87, 62 85 L70 35 Z" stroke="rgba(255,255,255,0.4)" stroke-width="3" stroke-linejoin="round" fill="rgba(255,255,255,0.03)" />
+                        <path id="latte-liquid" class="animate-sip" d="M32 48 L37 83 C37 84, 38 85, 39 85 L61 85 C62 85, 63 84, 63 83 L68 48 Q50 52 32 48 Z" fill="#b45309" />
+                        <rect x="40" y="55" width="10" height="10" rx="2" transform="rotate(15 40 55)" fill="rgba(255,255,255,0.15)" />
+                        <rect x="52" y="65" width="10" height="10" rx="2" transform="rotate(-10 52 65)" fill="rgba(255,255,255,0.15)" />
+                    </svg>
+                    <div class="absolute bottom-2 left-1/2 w-1 h-1 bg-white/20 rounded-full animate-ping"></div>
+                </div>
+
+                <div id="coffee-result" class="p-3 rounded-xl bg-slate-900/40 border border-slate-800/80 text-xs hidden transition-all duration-500">
+                    <div class="font-bold mb-1 uppercase tracking-wider text-[10px]" id="coffee-verdict-title">Status Matrix</div>
+                    <p class="text-slate-400 text-[11px] leading-relaxed" id="coffee-verdict-text">Run metrics pending analysis allocation.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: FEATURE - Window of Opportunity -->
+        <div class="md:col-span-1 glass-card rounded-3xl p-6 border-slate-800 flex flex-col justify-between">
+            <div>
+                <h3 class="text-sm font-semibold tracking-wide text-white mb-1">Windows of Opportunity</h3>
+                <p class="text-xs text-slate-400 mb-4">Algorithmic dry-spell targeter</p>
+                
+                <!-- Timeline Stack -->
+                <div class="space-y-2.5">
+                    <div class="flex items-center justify-between p-3 bg-slate-900/40 rounded-xl border border-slate-800/50 text-xs">
+                        <span class="font-mono text-slate-400">14:00 - 15:00</span>
+                        <span class="text-slate-500 font-medium" id="timeline-slot-1">Heavy Showers</span>
+                    </div>
+                    
+                    <!-- Glowing Target Window -->
+                    <div id="opportunity-window" class="flex items-center justify-between p-3 rounded-xl text-xs animate-pulse-glow transition-all duration-500">
+                        <span class="font-mono font-semibold id-time">15:15 - 16:00</span>
+                        <span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider id-badge">Dry Window</span>
+                    </div>
+
+                    <div class="flex items-center justify-between p-3 bg-slate-900/40 rounded-xl border border-slate-800/50 text-xs">
+                        <span class="font-mono text-slate-400">16:00 - 17:00</span>
+                        <span class="text-slate-500 font-medium" id="timeline-slot-2">Overcast</span>
+                    </div>
+                </div>
+            </div>
+
+            <p class="text-[11px] text-slate-500 mt-6 leading-relaxed">
+                *Calculated via real-time micro-precipitation analysis loops.
+            </p>
+        </div>
+
+    </main>
+
+    <!-- Footer Meta -->
+    <footer class="max-w-5xl w-full mx-auto text-center mt-8 text-[11px] text-slate-600 tracking-wide font-mono">
+        UMBRELLA // ARCHITECTURE BUILT FOR ELEVATED ELEMENTS
+    </footer>
+
+    <!-- Immersive Script Logic -->
+    <script>
+        // Global environment metadata config profiles
+        let currentCity = "Birmingham";
+        const API_KEY = "de8d93a4a79ac97dd80460532fc4d4cc";
+
+        const weatherStates = {
+            rain: {
+                colorClass: "sky-400",
+                themeBody: "theme-rain",
+                glowClass: "glow-rain",
+                condition: "Persistent Drizzle",
+                pubScore: "2/10",
+                pubVerdict: "Highly unviable. Extreme cloud blanket and active drizzle. Secure an indoor fireplace layout immediately.",
+                beerColor: "#78350f",
+                highWind: true,
+                windowTime: "15:15 - 16:00",
+                windowText: "Dry Window",
+                time1: "Heavy Showers",
+                time2: "Overcast",
+                coffee: {
+                    title: "CRITICAL RISK DETECTED // ABORT RUN",
+                    text: "Precipitation density at critical levels. A standard transit loop to the local coffee bar plus barista queue delays guarantees severe structural dampness. Postpone your iced latte configurations.",
+                    style: "border-red-500/30 text-red-400 bg-red-950/20",
+                    liquidColor: "#5c3a21"
+                }
+            },
+            sun: {
+                colorClass: "yellow-400",
+                themeBody: "theme-sun",
+                glowClass: "glow-sun",
+                condition: "Clear & Splendid",
+                pubScore: "9.6/10",
+                pubVerdict: "Certified Gold Status. Zero precipitation risk combined with structural solar warmth. Relocate to the nearest beer garden window immediately.",
+                beerColor: "#fbbf24",
+                highWind: false,
+                windowTime: "All Day Event",
+                windowText: "Peak Solar Peak",
+                time1: "Clear Skies",
+                time2: "Clear Skies",
+                coffee: {
+                    title: "OPTIMAL PARAMETERS // SECURE COFFEE",
+                    text: "Precipitation profile clear. Perfect solar environment. Safe to proceed on foot with zero shell layers required. Highly recommended to update iced coffee quotas right now.",
+                    style: "border-lime-500/30 text-lime-400 bg-lime-950/20",
+                    liquidColor: "#b45309"
+                }
+            },
+            snow: {
+                colorClass: "cyan-300",
+                themeBody: "theme-snow",
+                glowClass: "glow-snow",
+                condition: "Powder Flurries",
+                pubScore: "1/10",
+                pubVerdict: "Frozen index threshold surpassed. Liquids will freeze outside. Target warm coffee configurations inside.",
+                beerColor: "#1e1b4b",
+                highWind: false,
+                windowTime: "11:00 - 12:30",
+                windowText: "Clear Path Window",
+                time1: "Heavy Snow",
+                time2: "Blizzard Risk",
+                coffee: {
+                    title: "THERMAL ALERT // EXPEDITION MODE",
+                    text: "Atmospheric temperatures low. Liquid cargo will suffer extreme rapid thermal decline outside. If executing coffee run, completely discard 'Iced' dependencies and pivot to hot options.",
+                    style: "border-cyan-500/30 text-cyan-400 bg-cyan-950/20",
+                    liquidColor: "#78350f"
+                }
+            },
+            hail: {
+                colorClass: "purple-400",
+                themeBody: "theme-hail",
+                glowClass: "glow-hail",
+                condition: "Severe Ice Pellets",
+                pubScore: "0/10",
+                pubVerdict: "Absolute structural alert. Velocity of micro ice pellets poses risks to patio parasols. Remain anchored indoors.",
+                beerColor: "#4c1d95",
+                highWind: true,
+                windowTime: "18:20 - 19:00",
+                windowText: "Lull In Storm",
+                time1: "Violent Hail",
+                time2: "Thunder Event",
+                coffee: {
+                    title: "VELOCITY WARNING // HARD COFFEE BAN",
+                    text: "High-velocity ice pellets traveling across path coordinates. Extreme impact risk to uncovered plastic cup lids. Do not leave the structure.",
+                    style: "border-purple-500/30 text-purple-400 bg-purple-950/20",
+                    liquidColor: "#451a03"
+                }
+            }
+        };
+
+        // Standard Dynamic Wardrobe Pool Generator
+        const wardrobePool = {
+            rain: [{ item: "Waterproof Trench / Shell" }, { item: "Mid-weight Knit Layer" }, { item: "Gore-Tex foot protection" }],
+            sun: [{ item: "Light Linen / Cotton Garments" }, { item: "Premium Sunglasses" }, { item: "SPF 30+ Filter Layer" }],
+            snow: [{ item: "Heavy Goose-Down Parka" }, { item: "Thermal Base Layers" }, { item: "Woolen Scarf & Gloves" }],
+            hail: [{ item: "Heavy Duty Technical Shell" }, { item: "Impact Resistant Headwear" }, { item: "Reinforced Boots" }]
+        };
+
+        // Canvas Particle Engine Variables
+        const canvas = document.getElementById('weather-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        let currentMode = 'rain';
+        let animationFrameId;
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class Particle {
+            constructor(type) {
+                this.type = type;
+                this.reset();
+            }
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * -canvas.height;
+                if (this.type === 'rain') {
+                    this.length = Math.random() * 20 + 15;
+                    this.speed = Math.random() * 12 + 18;
+                    this.weight = Math.random() * 1 + 1;
+                    this.color = 'rgba(14, 165, 233, 0.4)';
+                } else if (this.type === 'snow') {
+                    this.radius = Math.random() * 3 + 1;
+                    this.speed = Math.random() * 1.5 + 1;
+                    this.color = 'rgba(255, 255, 255, 0.7)';
+                } else if (this.type === 'hail') {
+                    this.radius = Math.random() * 4 + 2;
+                    this.speed = Math.random() * 8 + 12;
+                    this.color = 'rgba(192, 132, 252, 0.5)';
+                }
+            }
+            update() {
+                if (this.type === 'rain') { this.y += this.speed; this.x += 1; }
+                else if (this.type === 'snow') { this.y += this.speed; this.x += Math.sin(this.y / 30) * 0.5; }
+                else if (this.type === 'hail') { this.y += this.speed; this.x -= 0.5; }
+                if (this.y > canvas.height) this.reset();
+            }
+            draw() {
+                ctx.beginPath();
+                if (this.type === 'rain') {
+                    ctx.strokeStyle = this.color; ctx.lineWidth = this.weight;
+                    ctx.moveTo(this.x, this.y); ctx.lineTo(this.x + 1, this.y + this.length); ctx.stroke();
+                } else {
+                    ctx.fillStyle = this.color; ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, true); ctx.fill();
+                }
+            }
+        }
+
+        function initParticles(type) {
+            particles = [];
+            let count = type === 'sun' ? 0 : 90;
+            if (type === 'hail') count = 60;
+            for (let i = 0; i < count; i++) particles.push(new Particle(type));
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (currentMode !== 'sun') {
+                particles.forEach(p => { p.update(); p.draw(); });
+            }
+            animationFrameId = requestAnimationFrame(animate);
+        }
+
+        // Location Mutation Telemetry Processor
+        function processLocationChange() {
+            const input = document.getElementById('location-input');
+            const city = input.value.trim();
+            if (!city) return;
+
+            // Normalize title text layout
+            currentCity = city.charAt(0).toUpperCase() + city.slice(1);
+            
+            const overlay = document.getElementById('satellite-overlay');
+            const overlayTxt = document.getElementById('overlay-text');
+            const overlayCoords = document.getElementById('overlay-coords');
+
+            // Compute mock geographic telemetry coordinates based on city text hash strings
+            let mockLat = (51 + (currentCity.charCodeAt(0) % 5) + Math.random()).toFixed(4);
+            let mockLon = (0 - (currentCity.charCodeAt(currentCity.length - 1) % 4) - Math.random()).toFixed(4);
+            
+            overlayTxt.innerText = `RE-TARGETING COURIER ORBITS: ${currentCity.toUpperCase()}...`;
+            overlayCoords.innerText = `LAT: ${mockLat}° N // LON: ${Math.abs(mockLon)}° W`;
+            overlay.classList.remove('hidden');
+
+            setTimeout(() => {
+                overlay.classList.add('hidden');
+                
+                // Programmatically roll a default weather system matching the target coordinates seed value
+                const weatherOptions = ['rain', 'sun', 'snow', 'hail'];
+                const targetedSeed = weatherOptions[currentCity.length % weatherOptions.length];
+                
+                setWeather(targetedSeed);
+                input.value = ''; // clear out input buffer shell
+            }, 1200);
+        }
+
+        function analyzeCoffeeRun() {
+            const resultBox = document.getElementById('coffee-result');
+            const animBox = document.getElementById('coffee-animation-box');
+            const btn = document.getElementById('btn-coffee-analyze');
+            const icon = document.getElementById('coffee-icon');
+            const liquid = document.getElementById('latte-liquid');
+            const data = weatherStates[currentMode].coffee;
+            
+            btn.innerText = "Processing Telemetry...";
+            btn.disabled = true;
+            icon.classList.add('scale-[1.3]', 'rotate-12');
+            liquid.setAttribute('fill', data.liquidColor);
+
+            resultBox.classList.add('hidden');
+            animBox.classList.add('hidden');
+            
+            setTimeout(() => {
+    overlay.classList.add('hidden');
+
+    fetch(`https://api.openweathermap.org/data/2.5/weather?q=${currentCity}&appid=${API_KEY}&units=metric`)
+        .then(response => response.json())
+        .then(data => {
+            const weatherMain = data.weather[0].main.toLowerCase();
+
+            if (weatherMain.includes("rain")) {
+                setWeather("rain");
+            } else if (weatherMain.includes("clear")) {
+                setWeather("sun");
+            } else if (weatherMain.includes("snow")) {
+                setWeather("snow");
+            } else {
+                setWeather("hail");
+            }
+
+            document.getElementById('temp-display').innerText = `${Math.round(data.main.temp)}°C`;
+            document.getElementById('wind-display').innerText = `${Math.round(data.wind.speed * 2.237)} mph`;
+            document.getElementById('precip-display').innerText = `${data.clouds.all}%`;
+            document.getElementById('condition-display').innerText = data.weather[0].description;
+
+            input.value = '';
+        })
+        .catch(error => {
+            console.error(error);
+            alert("City not found");
+        });
+
+}, 1200);
+        }
+
+        function setWeather(mode) {
+            currentMode = mode;
+            const data = weatherStates[mode];
+            const allModes = ['rain', 'sun', 'snow', 'hail'];
+            
+            document.getElementById('coffee-result').classList.add('hidden');
+            document.getElementById('coffee-animation-box').classList.add('hidden');
+            document.getElementById('btn-coffee-analyze').innerText = "Execute Radar Simulation Loop";
+
+            // Compute structural values depending dynamically on local parameters
+            let localTemp = mode === 'sun' ? 20 + (currentCity.length % 5) : 2 + (currentCity.length % 12);
+            let localWind = 5 + (currentCity.length * 3);
+            let localPrecip = mode === 'sun' ? 2 + (currentCity.length % 5) : 60 + (currentCity.length * 2);
+            if (localPrecip > 100) localPrecip = 98;
+
+            allModes.forEach(m => {
+                const btn = document.getElementById(`btn-${m}`);
+                if(m === mode) btn.className = `p-2.5 rounded-xl border transition-all duration-300 bg-${data.colorClass}/10 text-${data.colorClass} border-${data.colorClass}/40`;
+                else btn.className = `p-2.5 rounded-xl text-slate-500 hover:bg-slate-900 transition-all duration-300`;
+            });
+
+            const body = document.body;
+            allModes.forEach(m => body.classList.remove(`theme-${m}`));
+            body.classList.add(data.themeBody);
+
+            const mainCard = document.getElementById('main-card');
+            allModes.forEach(m => mainCard.classList.remove(`glow-${m}`));
+            mainCard.classList.add(data.glowClass);
+
+            const logoIcon = document.getElementById('logo-icon');
+            const logoDot = document.getElementById('logo-dot');
+            const condition = document.getElementById('condition-display');
+            const indicator = document.querySelector('.id-indicator');
+
+            logoIcon.className = `w-8 h-8 transition-colors duration-500 text-${data.colorClass}`;
+            logoDot.className = `transition-colors duration-500 text-${data.colorClass}`;
+            condition.className = `text-sm font-medium mt-2 transition-colors duration-500 text-${data.colorClass}`;
+            indicator.className = `w-2 h-2 rounded-full transition-colors duration-500 id-indicator bg-${data.colorClass}`;
+
+            // Sync structural localized field views
+            document.getElementById('location-label').innerText = `Current / ${currentCity}`;
+            document.getElementById('temp-display').innerText = `${localTemp}°C`;
+            condition.innerText = data.condition;
+            document.getElementById('wind-display').innerText = `${localWind} mph`;
+            document.getElementById('precip-display').innerText = `${localPrecip}%`;
+            document.getElementById('timeline-slot-1').innerText = data.time1;
+            document.getElementById('timeline-slot-2').innerText = data.time2;
+
+            const pubScore = document.getElementById('pub-score');
+            pubScore.innerText = data.pubScore;
+            document.getElementById('pub-verdict').innerText = data.pubVerdict;
+            
+            document.getElementById('beer-liquid-left').setAttribute('fill', data.beerColor);
+            document.getElementById('beer-liquid-right').setAttribute('fill', data.beerColor);
+
+            if(mode === 'sun') pubScore.className = "text-2xl font-bold font-mono px-3 py-1 bg-yellow-950/40 rounded-xl border border-yellow-500/30 text-yellow-400";
+            else pubScore.className = "text-2xl font-bold font-mono px-3 py-1 bg-slate-900 rounded-xl border border-slate-800 text-slate-400";
+
+            const optWindow = document.getElementById('opportunity-window');
+            const badge = document.querySelector('.id-badge');
+            const timeSpan = document.querySelector('.id-time');
+
+            timeSpan.innerText = data.windowTime;
+            badge.innerText = data.windowText;
+            optWindow.className = `flex items-center justify-between p-3 rounded-xl text-xs animate-pulse-glow transition-all duration-500 bg-${data.colorClass}/10 border border-${data.colorClass}/30 text-${data.colorClass}`;
+            badge.className = `px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider id-badge bg-${data.colorClass} ${mode === 'sun' ? 'text-black' : 'text-slate-950'}`;
+
+            const listContainer = document.getElementById('wardrobe-list');
+            listContainer.innerHTML = '';
+            wardrobePool[mode].forEach(item => {
+                const row = document.createElement('div');
+                row.className = "flex items-center gap-3 p-2 rounded-xl bg-slate-900/30 border border-slate-800/40 text-xs";
+                row.innerHTML = `
+                    <div class="w-4 h-4 rounded-md border border-${data.colorClass}/30 bg-${data.colorClass}/5 flex items-center justify-center">
+                        <div class="w-1.5 h-1.5 rounded-sm bg-${data.colorClass}"></div>
+                    </div>
+                    <span class="text-slate-200">${item.item}</span>
+                `;
+                listContainer.appendChild(row);
+            });
+
+            const warningBox = document.getElementById('safety-warning');
+            if (data.highWind && localWind > 25) warningBox.classList.remove('hidden');
+            else warningBox.classList.add('hidden');
+
+            initParticles(mode);
+        }
+
+        window.onload = () => {
+            setWeather('rain');
+            animate();
+        };
+    </script>
+</body>
+</html>
