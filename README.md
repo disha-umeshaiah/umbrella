@@ -116,5 +116,5 @@ This project combines frontend engineering, API integration, animation systems, 
 
 ## Author
 
-Built by **D**
+Built by **Disha Umeshaiah**
 
