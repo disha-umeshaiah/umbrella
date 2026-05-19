@@ -7,7 +7,6 @@ Umbrella transforms traditional weather forecasting into an interactive atmosphe
 ## Features
 
 ### 🌍 Real-Time Weather Data
-- Fetches live weather conditions using the OpenWeather API
 - Supports any user-entered location worldwide
 - Displays:
   - Temperature
@@ -64,8 +63,6 @@ Identifies optimal dry weather windows.
 - Tailwind CSS
 - Vanilla JavaScript
 
-**APIs**
-- OpenWeather API
 
 **Rendering**
 - HTML Canvas API
@@ -87,7 +84,6 @@ index.html
 ├── UI Layout (Tailwind + Glassmorphism)
 ├── Weather State Engine
 ├── Particle Animation System
-├── API Fetch Logic
 ├── Dynamic Theme Controller
 └── Interactive Analysis Modules
 ```
@@ -110,7 +106,7 @@ Most weather apps prioritise data density over experience.
 
 Umbrella was built to explore how real-time environmental data can be transformed into an immersive, cinematic, and intelligent interface.
 
-This project combines frontend engineering, API integration, animation systems, and UX experimentation.
+This project combines frontend engineering, animation systems, and UX experimentation.
 
 ---
 
